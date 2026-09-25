@@ -198,6 +198,26 @@ router.delete("/:id", autenticar, exigirPapel("empresa", "admin"), async (req, r
   }
 });
 
+// ---------- GET /pontos/:id/disponibilidade  (público) ----------
+// devolve os períodos já reservados (campanhas não finalizadas) para desenhar
+// um calendário de ocupação — reaproveita a tabela campanhas, sem precisar
+// de uma tabela nova. Não expõe quem é o cliente, só o período e o status.
+router.get("/:id/disponibilidade", async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `select inicio, fim, status from campanhas
+       where ponto_id = $1 and status <> 'finalizada'
+       order by inicio asc`,
+      [req.params.id]
+    );
+    res.json({
+      periodos: rows.map((r) => ({ inicio: r.inicio, fim: r.fim, status: r.status })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---------- fotos ----------
 
 // POST /pontos/:id/fotos  { dados }  -> adiciona uma foto (data URL base64)
