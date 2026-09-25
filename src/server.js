@@ -11,6 +11,8 @@ const pedidosRoutes = require("./routes/pedidos.routes");
 const campanhasRoutes = require("./routes/campanhas.routes");
 const arquivosRoutes = require("./routes/arquivos.routes");
 const relatoriosRoutes = require("./routes/relatorios.routes");
+const avaliacoesRoutes = require("./routes/avaliacoes.routes");
+const mensagensRoutes = require("./routes/mensagens.routes");
 
 const app = express();
 
@@ -33,6 +35,8 @@ app.use("/pedidos", pedidosRoutes);
 app.use("/campanhas", campanhasRoutes);
 app.use("/", arquivosRoutes); // define rotas completas: /campanhas/:id/arquivos e /arquivos/:id/(aprovar|reprovar)
 app.use("/relatorios", relatoriosRoutes);
+app.use("/", avaliacoesRoutes); // define rotas completas: /pontos/:id/avaliacoes
+app.use("/", mensagensRoutes);  // define rotas completas: /campanhas/:id/mensagens
 
 // rota inexistente
 app.use((req, res) => {
