@@ -22,7 +22,7 @@ function fotoPublica(row) {
   };
 }
 
-function pontoPublico(row, fotos) {
+function pontoPublico(row, fotos, veiculacaoAtual) {
   return {
     id: row.id,
     empresaId: row.empresa_id,
@@ -39,7 +39,31 @@ function pontoPublico(row, fotos) {
     formatos: row.formatos,
     fotoPrincipalId: row.foto_principal_id,
     fotos: (fotos || []).map(fotoPublica),
+    veiculacaoAtual: veiculacaoAtual || null,
     criadoEm: row.criado_em,
+  };
+}
+
+/** Campanha em exibição neste ponto agora, com a arte aprovada — informação
+ *  pública (é literalmente o que está exposto na rua), usada para mostrar
+ *  "Arte em veiculação" na página pública do ponto, sem precisar de login. */
+async function carregarVeiculacaoAtual(pontoId) {
+  const { rows } = await query(
+    `select c.nome as campanha_nome, c.fim as campanha_fim,
+            a.tipo as arquivo_tipo, a.dados as arquivo_dados, a.nome as arquivo_nome
+     from campanhas c
+     join arquivos_midia a on a.campanha_id = c.id
+     where c.ponto_id = $1 and c.status = 'exibicao' and a.status = 'aprovada'
+     order by a.avaliado_em desc nulls last, a.enviado_em desc
+     limit 1`,
+    [pontoId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    campanhaNome: row.campanha_nome,
+    fim: row.campanha_fim,
+    arquivo: { nome: row.arquivo_nome, tipo: row.arquivo_tipo, dados: row.arquivo_dados },
   };
 }
 
@@ -50,7 +74,8 @@ async function carregarPontoComFotos(id) {
     "select * from fotos_pontos where ponto_id = $1 order by ordem asc, criado_em asc",
     [id]
   );
-  return pontoPublico(pontoRows[0], fotoRows);
+  const veiculacaoAtual = await carregarVeiculacaoAtual(id);
+  return pontoPublico(pontoRows[0], fotoRows, veiculacaoAtual);
 }
 
 /** Garante que o usuário logado pode editar este ponto (dono da empresa, ou admin). */
