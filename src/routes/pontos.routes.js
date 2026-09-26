@@ -243,6 +243,21 @@ router.get("/:id/disponibilidade", async (req, res, next) => {
   }
 });
 
+// ---------- GET /pontos/:id/telao  (público) ----------
+// endpoint leve, pensado pra ser consultado a cada poucos segundos por uma
+// tela (TV/monitor) mostrando a arte aprovada em exibição neste ponto agora,
+// pra simular o painel real trocando de conteúdo assim que uma arte é aprovada.
+router.get("/:id/telao", async (req, res, next) => {
+  try {
+    const { rows } = await query("select id, nome from pontos where id = $1", [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ erro: "Ponto não encontrado." });
+    const veiculacaoAtual = await carregarVeiculacaoAtual(req.params.id);
+    res.json({ pontoNome: rows[0].nome, veiculacaoAtual });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---------- fotos ----------
 
 // POST /pontos/:id/fotos  { dados }  -> adiciona uma foto (data URL base64)
