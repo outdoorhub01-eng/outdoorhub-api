@@ -1,8 +1,11 @@
 const express = require("express");
 const { query } = require("../db");
 const { autenticar, exigirPapel } = require("../auth/middleware");
+const { decodificarDataURL } = require("../domain/upload");
 
 const router = express.Router();
+
+const FOTO_MAX_BYTES = 8 * 1024 * 1024; // 8 MB já decodificado
 
 function avaliacaoPublica(row) {
   return {
@@ -12,6 +15,7 @@ function avaliacaoPublica(row) {
     autor: row.empresa_nome || row.nome || "Cliente OutdoorHub",
     nota: row.nota,
     comentario: row.comentario,
+    foto: row.foto_dados ? { tipo: row.foto_tipo, dados: row.foto_dados } : null,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
   };
@@ -56,20 +60,36 @@ router.post("/pontos/:id/avaliacoes", autenticar, exigirPapel("cliente"), async 
       });
     }
 
-    const { nota, comentario } = req.body || {};
+    const { nota, comentario, foto } = req.body || {};
     const notaNum = Number(nota);
     if (!Number.isInteger(notaNum) || notaNum < 1 || notaNum > 5) {
       return res.status(400).json({ erro: "A nota precisa ser um número inteiro de 1 a 5." });
     }
     const comentarioTexto = typeof comentario === "string" && comentario.trim() ? comentario.trim() : null;
 
+    let fotoTipo = null;
+    let fotoDados = null;
+    if (typeof foto === "string" && foto) {
+      const decodificado = decodificarDataURL(foto);
+      if (!decodificado) return res.status(400).json({ erro: "Foto inválida." });
+      if (!decodificado.tipoMime.startsWith("image/")) {
+        return res.status(400).json({ erro: "A foto precisa ser uma imagem." });
+      }
+      if (decodificado.buffer.length > FOTO_MAX_BYTES) {
+        return res.status(400).json({ erro: "Foto maior que 8 MB. Comprima antes de enviar." });
+      }
+      fotoTipo = decodificado.tipoMime;
+      fotoDados = foto;
+    }
+
     const { rows } = await query(
-      `insert into avaliacoes (ponto_id, usuario_id, nota, comentario)
-       values ($1,$2,$3,$4)
+      `insert into avaliacoes (ponto_id, usuario_id, nota, comentario, foto_tipo, foto_dados)
+       values ($1,$2,$3,$4,$5,$6)
        on conflict (ponto_id, usuario_id)
-       do update set nota = excluded.nota, comentario = excluded.comentario, atualizado_em = now()
+       do update set nota = excluded.nota, comentario = excluded.comentario,
+         foto_tipo = excluded.foto_tipo, foto_dados = excluded.foto_dados, atualizado_em = now()
        returning *`,
-      [req.params.id, req.usuario.sub, notaNum, comentarioTexto]
+      [req.params.id, req.usuario.sub, notaNum, comentarioTexto, fotoTipo, fotoDados]
     );
     const { rows: userRow } = await query("select nome, empresa_nome from usuarios where id = $1", [
       req.usuario.sub,
